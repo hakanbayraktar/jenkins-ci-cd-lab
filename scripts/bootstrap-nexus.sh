@@ -10,6 +10,11 @@ if ! curl -fsS -u "$NEXUS_ADMIN_USER:$NEXUS_ADMIN_PASSWORD" http://localhost:808
   log "Setting the intentionally public demo Nexus admin password"
   curl -fsS -u "admin:$initial_password" -H 'Content-Type: text/plain' -X PUT --data "$NEXUS_ADMIN_PASSWORD" http://localhost:8081/service/rest/v1/security/users/admin/change-password >/dev/null
 fi
+eula="$(api http://localhost:8081/service/rest/v1/system/eula)"
+if ! jq -e '.accepted == true' <<<"$eula" >/dev/null; then
+  log "Accepting the Nexus Community Edition EULA for this training lab"
+  jq -c '.accepted = true' <<<"$eula" | api -X POST --data-binary @- http://localhost:8081/service/rest/v1/system/eula >/dev/null
+fi
 active="$(api http://localhost:8081/service/rest/v1/security/realms/active)"
 if ! jq -e '.[] == "DockerToken"' <<<"$active" >/dev/null; then
   jq -c '. + ["DockerToken"] | unique' <<<"$active" | api -X PUT --data-binary @- http://localhost:8081/service/rest/v1/security/realms/active >/dev/null
@@ -17,8 +22,11 @@ fi
 if ! api http://localhost:8081/service/rest/v1/repositories | jq -e '.[] | select(.name == "docker-hosted")' >/dev/null; then
   api -X POST --data '{"name":"docker-hosted","online":true,"storage":{"blobStoreName":"default","strictContentTypeValidation":true,"writePolicy":"ALLOW"},"cleanup":null,"component":{"proprietaryComponents":false},"docker":{"v1Enabled":false,"forceBasicAuth":false,"httpPort":8082}}' http://localhost:8081/service/rest/v1/repositories/docker/hosted >/dev/null
 fi
-if ! api http://localhost:8081/service/rest/v1/security/roles/jenkins-ci-role >/dev/null 2>&1; then
-  api -X POST --data '{"id":"jenkins-ci-role","name":"Jenkins CI Docker hosted","description":"TRAINING ONLY: push and pull docker-hosted","privileges":["nx-repository-view-docker-docker-hosted-*"],"roles":[]}' http://localhost:8081/service/rest/v1/security/roles >/dev/null
+role_payload='{"id":"jenkins-ci-role","name":"Jenkins CI Docker hosted","description":"TRAINING ONLY: push and pull docker-hosted","privileges":["nx-repository-view-docker-docker-hosted-browse","nx-repository-view-docker-docker-hosted-read","nx-repository-view-docker-docker-hosted-add","nx-repository-view-docker-docker-hosted-edit"],"roles":[]}'
+if api http://localhost:8081/service/rest/v1/security/roles/jenkins-ci-role >/dev/null 2>&1; then
+  api -X PUT --data "$role_payload" http://localhost:8081/service/rest/v1/security/roles/jenkins-ci-role >/dev/null
+else
+  api -X POST --data "$role_payload" http://localhost:8081/service/rest/v1/security/roles >/dev/null
 fi
 if ! api http://localhost:8081/service/rest/v1/security/users | jq -e --arg id "$NEXUS_CI_USER" '.[] | select(.userId == $id)' >/dev/null; then
   api -X POST --data "{\"userId\":\"$NEXUS_CI_USER\",\"firstName\":\"Jenkins\",\"lastName\":\"CI\",\"emailAddress\":\"jenkins-ci@example.invalid\",\"password\":\"$NEXUS_CI_PASSWORD\",\"status\":\"active\",\"roles\":[\"jenkins-ci-role\"]}" http://localhost:8081/service/rest/v1/security/users >/dev/null
