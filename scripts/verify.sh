@@ -3,8 +3,9 @@ set -Eeuo pipefail
 source "$(dirname "$0")/lib/common.sh"
 load_env
 docker info >/dev/null
-compose ps --status running | grep -q jenkins
-compose ps --status running | grep -q nexus
+running_services="$(compose ps --status running --services)"
+grep -qx jenkins <<<"$running_services"
+grep -qx nexus <<<"$running_services"
 kind get clusters | grep -qx jenkins-ci-cd-lab
 [[ "$(kubectl get nodes --no-headers | awk '$2 == "Ready" {n++} END {print n+0}')" -ge 2 ]] || die "kind does not have two Ready nodes"
 wait_for_http http://localhost:8081/service/rest/v1/status 5 2
