@@ -32,9 +32,8 @@ pipeline {
       steps {
         sh '''#!/bin/sh
           set -eu
-          endpoint=http://jenkins-ci-cd-lab-control-plane:30080
-          curl -fsS "$endpoint/health" | jq -e '.status == "healthy"'
-          curl -fsS "$endpoint/version" | jq -e --arg v "$IMAGE_TAG" '.version == $v'
+          kubectl -n jenkins-lab exec deployment/flask-app -- wget -qO- http://flask-app:8080/health | jq -e '.status == "healthy"'
+          kubectl -n jenkins-lab exec deployment/flask-app -- wget -qO- http://flask-app:8080/version | jq -e --arg v "$IMAGE_TAG" '.version == $v'
         '''
       }
     }
