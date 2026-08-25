@@ -32,8 +32,20 @@ pipeline {
       steps {
         sh '''#!/bin/sh
           set -eu
-          kubectl -n jenkins-lab exec deployment/flask-app -- wget -qO- http://flask-app:8080/health | jq -e '.status == "healthy"'
-          kubectl -n jenkins-lab exec deployment/flask-app -- wget -qO- http://flask-app:8080/version | jq -e --arg v "$IMAGE_TAG" '.version == $v'
+          attempt=1
+          while [ "$attempt" -le 15 ]; do
+            if health="$(kubectl -n jenkins-lab exec deployment/flask-app -- wget -qO- http://flask-app:8080/health 2>/dev/null)" \
+              && version="$(kubectl -n jenkins-lab exec deployment/flask-app -- wget -qO- http://flask-app:8080/version 2>/dev/null)" \
+              && printf '%s' "$health" | jq -e '.status == "healthy"' >/dev/null \
+              && printf '%s' "$version" | jq -e --arg v "$IMAGE_TAG" '.version == $v' >/dev/null; then
+              exit 0
+            fi
+            printf 'Smoke test not ready (attempt %s/15); retrying.\\n' "$attempt"
+            attempt=$((attempt + 1))
+            sleep 2
+          done
+          printf 'Smoke test never reached the expected deployment version.\\n' >&2
+          exit 1
         '''
       }
     }
