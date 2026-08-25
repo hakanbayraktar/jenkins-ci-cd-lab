@@ -5,6 +5,7 @@ load_env
 cookie_jar="$(mktemp)"
 trap 'rm -f "$cookie_jar"' EXIT
 expected_ci_number="$(curl -fsS -u "$JENKINS_ADMIN_USER:$JENKINS_ADMIN_PASSWORD" http://localhost:8080/job/flask-app-ci/api/json | jq -r .nextBuildNumber)"
+previous_cd_number="$(curl -fsS -u "$JENKINS_ADMIN_USER:$JENKINS_ADMIN_PASSWORD" http://localhost:8080/job/flask-app-cd/api/json | jq -r '.lastBuild.number // 0')"
 crumb="$(curl -fsS -c "$cookie_jar" -b "$cookie_jar" -u "$JENKINS_ADMIN_USER:$JENKINS_ADMIN_PASSWORD" http://localhost:8080/crumbIssuer/api/json)"
 crumb_field="$(jq -r .crumbRequestField <<<"$crumb")"; crumb_value="$(jq -r .crumb <<<"$crumb")"
 curl -fsS -c "$cookie_jar" -b "$cookie_jar" -u "$JENKINS_ADMIN_USER:$JENKINS_ADMIN_PASSWORD" -H "$crumb_field: $crumb_value" -X POST http://localhost:8080/job/flask-app-ci/build >/dev/null
@@ -21,7 +22,7 @@ while [[ "$(jq -r .building <<<"$ci")" == true ]]; do sleep 3; ci="$(curl -fsS -
 log "CI #$ci_number: SUCCESS; waiting for automatic CD"
 for _ in $(seq 1 120); do
   cd_build="$(curl -fsS -u "$JENKINS_ADMIN_USER:$JENKINS_ADMIN_PASSWORD" http://localhost:8080/job/flask-app-cd/lastBuild/api/json 2>/dev/null || true)"
-  [[ -n "$cd_build" ]] && break
+  [[ -n "$cd_build" && "$(jq -r .number <<<"$cd_build")" -gt "$previous_cd_number" ]] && break
   sleep 2
 done
 [[ -n "${cd_build:-}" ]] || die "CI did not trigger CD"
