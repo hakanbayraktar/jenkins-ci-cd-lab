@@ -1,0 +1,30 @@
+jenkins:
+  systemMessage: "Jenkins CI/CD Lab — TRAINING ONLY"
+  numExecutors: 2
+  mode: NORMAL
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_USER}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  remotingSecurity:
+    enabled: true
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: nexus-docker-credentials
+              username: "${NEXUS_CI_USER}"
+              password: "${NEXUS_CI_PASSWORD}"
+              description: "TRAINING ONLY: Nexus Docker hosted registry"
+jobs:
+  - file: /var/jenkins_home/job-dsl/jobs.groovy

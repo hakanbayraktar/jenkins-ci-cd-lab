@@ -1,0 +1,102 @@
+name: jenkins-ci-cd-lab
+
+services:
+  jenkins-docker:
+    image: docker:28.5.2-dind
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+    volumes:
+      - dind-certs:/certs
+      - dind-data:/var/lib/docker
+    networks:
+      - lab-net
+    healthcheck:
+      test: ["CMD-SHELL", "docker info >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  nexus:
+    image: sonatype/nexus3:3.94.1
+    environment:
+      INSTALL4J_ADD_VM_PARAMS: -Xms768m -Xmx1536m -XX:MaxDirectMemorySize=1536m -Djava.util.prefs.userRoot=/nexus-data/javaprefs
+    ports:
+      - "8081:8081"
+      - "8082:8082"
+    volumes:
+      - nexus-data:/nexus-data
+    networks:
+      lab-net:
+      kind:
+        aliases:
+          - nexus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/service/rest/v1/status >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 36
+      start_period: 30s
+
+  jenkins:
+    build:
+      context: ./jenkins
+      args:
+        JENKINS_VERSION: 2.568.2-lts-jdk21
+        KUBECTL_VERSION: v1.36.1
+    environment:
+      CASC_JENKINS_CONFIG: /var/jenkins_home/casc_configs
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      DOCKER_HOST: tcp://jenkins-docker:2376
+      DOCKER_TLS_VERIFY: "1"
+      DOCKER_CERT_PATH: /certs/client
+      JENKINS_ADMIN_USER: ${JENKINS_ADMIN_USER}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD}
+      NEXUS_CI_USER: ${NEXUS_CI_USER}
+      NEXUS_CI_PASSWORD: ${NEXUS_CI_PASSWORD}
+      GIT_REPO_URL: ${GIT_REPO_URL}
+      TRIVY_ENFORCE: ${TRIVY_ENFORCE:-false}
+      NEXUS_REGISTRY: nexus:8082
+      NEXUS_REPOSITORY: jenkins-lab/flask-app
+      TRIVY_VERSION: "0.68.2"
+    ports:
+      - "8080:8080"
+    volumes:
+      - jenkins-home:/var/jenkins_home
+      - dind-certs:/certs:ro
+      - ./generated/jenkins-kubeconfig:/var/jenkins_home/.kube/config:ro
+      - ./jenkins/casc:/var/jenkins_home/casc_configs:ro
+      - ./jenkins/job-dsl:/var/jenkins_home/job-dsl:ro
+      # Available only as an offline/local SCM fallback; default remains GitHub.
+      - ./:/workspace-source:ro
+    depends_on:
+      jenkins-docker:
+        condition: service_healthy
+      nexus:
+        condition: service_healthy
+    networks:
+      - lab-net
+      - kind
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/login >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 36
+      start_period: 30s
+
+networks:
+  lab-net:
+    name: jenkins-ci-cd-lab-net
+  kind:
+    external: true
+    name: kind
+
+volumes:
+  jenkins-home:
+    name: jenkins-ci-cd-lab-jenkins-home
+  nexus-data:
+    name: jenkins-ci-cd-lab-nexus-data
+  dind-certs:
+    name: jenkins-ci-cd-lab-dind-certs
+  dind-data:
+    name: jenkins-ci-cd-lab-dind-data

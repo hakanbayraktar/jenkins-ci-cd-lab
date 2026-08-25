@@ -1,0 +1,46 @@
+pipeline {
+  agent any
+  options { timestamps(); disableConcurrentBuilds() }
+  environment { IMAGE_REPOSITORY = "${NEXUS_REGISTRY}/${NEXUS_REPOSITORY}" }
+  stages {
+    stage('Checkout') { steps { checkout scm } }
+    stage('Metadata') {
+      steps {
+        script {
+          env.GIT_SHA = sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
+          env.IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_SHA}"
+          env.IMAGE_REF = "${env.IMAGE_REPOSITORY}:${env.IMAGE_TAG}"
+          echo "Immutable image: ${env.IMAGE_REF}"
+        }
+      }
+    }
+    stage('Unit Tests') { steps { sh 'docker build --target test -t flask-app-test:${IMAGE_TAG} app' } }
+    stage('Docker Build') { steps { sh 'docker build --target runtime -t "${IMAGE_REF}" app' } }
+    stage('Trivy Scan') {
+      steps {
+        sh '''#!/bin/sh
+          set -eu
+          docker run --rm -v /certs/client:/certs/client:ro -e DOCKER_HOST -e DOCKER_TLS_VERIFY -e DOCKER_CERT_PATH \\
+            ghcr.io/aquasecurity/trivy:${TRIVY_VERSION} image --format table --exit-code 0 "${IMAGE_REF}" | tee trivy-report.txt
+          if [ "${TRIVY_ENFORCE}" = "true" ]; then
+            docker run --rm -v /certs/client:/certs/client:ro -e DOCKER_HOST -e DOCKER_TLS_VERIFY -e DOCKER_CERT_PATH \\
+              ghcr.io/aquasecurity/trivy:${TRIVY_VERSION} image --severity HIGH,CRITICAL --exit-code 1 "${IMAGE_REF}"
+          fi
+        '''
+        archiveArtifacts artifacts: 'trivy-report.txt', fingerprint: true
+      }
+    }
+    stage('Nexus Login and Push') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'nexus-docker-credentials', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASSWORD')]) {
+          sh '''#!/bin/sh
+            set -eu
+            printf '%s' "$NEXUS_PASSWORD" | docker login nexus:8082 --username "$NEXUS_USER" --password-stdin
+            docker push "$IMAGE_REF"
+          '''
+        }
+      }
+    }
+    stage('Trigger CD') { steps { build job: 'flask-app-cd', parameters: [string(name: 'IMAGE_TAG', value: "${IMAGE_TAG}")], wait: false } }
+  }
+}
