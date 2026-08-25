@@ -5,6 +5,7 @@ def test_index():
     response = app.test_client().get("/")
     assert response.status_code == 200
     assert response.json["application"] == "jenkins-ci-cd-lab"
+    assert response.json["message"] == "GitHub -> Jenkins -> Nexus -> Kubernetes deployment is live"
 
 
 def test_health():

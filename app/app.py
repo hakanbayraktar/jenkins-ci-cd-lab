@@ -7,7 +7,10 @@ app = Flask(__name__)
 
 @app.get("/")
 def index():
-    return jsonify(application="jenkins-ci-cd-lab", message="CI/CD pipeline is working")
+    return jsonify(
+        application="jenkins-ci-cd-lab",
+        message="GitHub -> Jenkins -> Nexus -> Kubernetes deployment is live",
+    )
 
 
 @app.get("/health")
