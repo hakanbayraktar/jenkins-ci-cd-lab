@@ -43,7 +43,8 @@ pipeline {
     failure {
       script {
         def revisions = sh(script: 'kubectl -n jenkins-lab rollout history deployment/flask-app 2>/dev/null | grep -c "^[[:space:]]*[0-9]" || true', returnStdout: true).trim().toInteger()
-        if (revisions > 1) {
+        // The manifest + set-image sequence creates two revisions on a first deployment.
+        if (revisions > 2) {
           echo 'Deployment failed; rolling back to the previous revision.'
           sh 'kubectl -n jenkins-lab rollout undo deployment/flask-app && kubectl -n jenkins-lab rollout status deployment/flask-app --timeout=120s'
         } else { echo 'Deployment failed on first revision; no prior revision exists to roll back to.' }
