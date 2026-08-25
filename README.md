@@ -13,6 +13,10 @@ make verify
 
 Docker, Docker Compose V2, kind, kubectl, curl, jq, make and git are prerequisites. `make up` is idempotent. Use `make down` to stop services and `make reset` to remove only lab-owned containers, volumes, cluster and generated kubeconfig.
 
+### Host access policy
+
+`make up` detects the host OS when creating kind. On macOS it binds the application port to `127.0.0.1:8088`; on Ubuntu/Linux it binds to `0.0.0.0:8088`, so students can open `http://SERVER_IP:8088` remotely. For Linux, allow inbound TCP/8088 in the host firewall and cloud security group. Override the policy with `APP_LISTEN_ADDRESS=127.0.0.1` or `APP_LISTEN_ADDRESS=0.0.0.0` in ignored `.env`; run `make reset && make up` after changing it.
+
 ## Architecture
 
 ```mermaid
