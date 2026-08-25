@@ -4,8 +4,10 @@ services:
   jenkins-docker:
     image: docker:28.5.2-dind
     privileged: true
+    command: ["--insecure-registry=nexus:8082"]
     environment:
       DOCKER_TLS_CERTDIR: /certs
+      DOCKER_TLS_SAN: DNS:jenkins-docker
     volumes:
       - dind-certs:/certs
       - dind-data:/var/lib/docker
@@ -46,7 +48,7 @@ services:
         KUBECTL_VERSION: v1.36.1
     environment:
       CASC_JENKINS_CONFIG: /var/jenkins_home/casc_configs
-      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false -Dhudson.plugins.git.GitSCM.ALLOW_LOCAL_CHECKOUT=true
       DOCKER_HOST: tcp://jenkins-docker:2376
       DOCKER_TLS_VERIFY: "1"
       DOCKER_CERT_PATH: /certs/client

@@ -20,7 +20,7 @@ fi
 if ! api http://localhost:8081/service/rest/v1/security/roles/jenkins-ci-role >/dev/null 2>&1; then
   api -X POST --data '{"id":"jenkins-ci-role","name":"Jenkins CI Docker hosted","description":"TRAINING ONLY: push and pull docker-hosted","privileges":["nx-repository-view-docker-docker-hosted-*"],"roles":[]}' http://localhost:8081/service/rest/v1/security/roles >/dev/null
 fi
-if ! api http://localhost:8081/service/rest/v1/security/users/jenkins-ci >/dev/null 2>&1; then
+if ! api http://localhost:8081/service/rest/v1/security/users | jq -e --arg id "$NEXUS_CI_USER" '.[] | select(.userId == $id)' >/dev/null; then
   api -X POST --data "{\"userId\":\"$NEXUS_CI_USER\",\"firstName\":\"Jenkins\",\"lastName\":\"CI\",\"emailAddress\":\"jenkins-ci@example.invalid\",\"password\":\"$NEXUS_CI_PASSWORD\",\"status\":\"active\",\"roles\":[\"jenkins-ci-role\"]}" http://localhost:8081/service/rest/v1/security/users >/dev/null
 fi
 log "Nexus bootstrap: PASS"

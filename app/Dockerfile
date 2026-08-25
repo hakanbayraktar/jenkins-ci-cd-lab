@@ -3,7 +3,7 @@ ARG PYTHON_IMAGE=python:3.13.2-alpine3.21
 
 FROM ${PYTHON_IMAGE} AS base
 WORKDIR /app
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app
 COPY requirements.txt requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
